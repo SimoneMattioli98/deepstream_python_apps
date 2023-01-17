@@ -121,6 +121,141 @@ def osd_sink_pad_buffer_probe(pad,info,u_data):
     return Gst.PadProbeReturn.OK	
 
 
+# def main(args):
+#     # Check input arguments
+#     if len(args) != 2:
+#         sys.stderr.write("usage: %s <media file or uri>\n" % args[0])
+#         sys.exit(1)
+
+#     # Standard GStreamer initialization
+#     Gst.init(None)
+
+#     # Create gstreamer elements
+#     # Create Pipeline element that will form a connection of other elements
+#     print("Creating Pipeline \n ")
+#     pipeline = Gst.Pipeline()
+
+#     if not pipeline:
+#         sys.stderr.write(" Unable to create Pipeline \n")
+
+#     # Source element for reading from the file
+#     print("Creating Source \n ")
+#     source = Gst.ElementFactory.make("filesrc", "file-source")
+#     if not source:
+#         sys.stderr.write(" Unable to create Source \n")
+
+#     # Since the data format in the input file is elementary h264 stream,
+#     # we need a h264parser
+#     print("Creating H264Parser \n")
+#     h264parser = Gst.ElementFactory.make("h264parse", "h264-parser")
+#     if not h264parser:
+#         sys.stderr.write(" Unable to create h264 parser \n")
+
+#     # Use nvdec_h264 for hardware accelerated decode on GPU
+#     print("Creating Decoder \n")
+#     decoder = Gst.ElementFactory.make("nvv4l2decoder", "nvv4l2-decoder")
+#     if not decoder:
+#         sys.stderr.write(" Unable to create Nvv4l2 Decoder \n")
+
+#     # Create nvstreammux instance to form batches from one or more sources.
+#     streammux = Gst.ElementFactory.make("nvstreammux", "Stream-muxer")
+#     if not streammux:
+#         sys.stderr.write(" Unable to create NvStreamMux \n")
+
+#     # Use nvinfer to run inferencing on decoder's output,
+#     # behaviour of inferencing is set through config file
+#     pgie = Gst.ElementFactory.make("nvinfer", "primary-inference")
+#     if not pgie:
+#         sys.stderr.write(" Unable to create pgie \n")
+
+#     # Use convertor to convert from NV12 to RGBA as required by nvosd
+#     nvvidconv = Gst.ElementFactory.make("nvvideoconvert", "convertor")
+#     if not nvvidconv:
+#         sys.stderr.write(" Unable to create nvvidconv \n")
+
+#     # Create OSD to draw on the converted RGBA buffer
+#     nvosd = Gst.ElementFactory.make("nvdsosd", "onscreendisplay")
+
+#     if not nvosd:
+#         sys.stderr.write(" Unable to create nvosd \n")
+
+#     # Finally render the osd output
+#     if is_aarch64():
+#         transform = Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
+
+#     print("Creating EGLSink \n")
+#     sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
+#     if not sink:
+#         sys.stderr.write(" Unable to create egl sink \n")
+
+#     print("Playing file %s " %args[1])
+#     source.set_property('location', args[1])
+#     streammux.set_property('width', 1920)
+#     streammux.set_property('height', 1080)
+#     streammux.set_property('batch-size', 1)
+#     streammux.set_property('batched-push-timeout', 4000000)
+#     pgie.set_property('config-file-path', "dstest1_pgie_config.txt")
+
+#     print("Adding elements to Pipeline \n")
+#     pipeline.add(source)
+#     pipeline.add(h264parser)
+#     pipeline.add(decoder)
+#     pipeline.add(streammux)
+#     pipeline.add(pgie)
+#     pipeline.add(nvvidconv)
+#     pipeline.add(nvosd)
+#     pipeline.add(sink)
+#     if is_aarch64():
+#         pipeline.add(transform)
+
+#     # we link the elements together
+#     # file-source -> h264-parser -> nvh264-decoder ->
+#     # nvinfer -> nvvidconv -> nvosd -> video-renderer
+#     print("Linking elements in the Pipeline \n")
+#     source.link(h264parser)
+#     h264parser.link(decoder)
+
+#     sinkpad = streammux.get_request_pad("sink_0")
+#     if not sinkpad:
+#         sys.stderr.write(" Unable to get the sink pad of streammux \n")
+#     srcpad = decoder.get_static_pad("src")
+#     if not srcpad:
+#         sys.stderr.write(" Unable to get source pad of decoder \n")
+#     srcpad.link(sinkpad)
+#     streammux.link(pgie)
+#     pgie.link(nvvidconv)
+#     nvvidconv.link(nvosd)
+#     if is_aarch64():
+#         nvosd.link(transform)
+#         transform.link(sink)
+#     else:
+#         nvosd.link(sink)
+
+#     # create an event loop and feed gstreamer bus mesages to it
+#     loop = GLib.MainLoop()
+#     bus = pipeline.get_bus()
+#     bus.add_signal_watch()
+#     bus.connect ("message", bus_call, loop)
+
+#     # Lets add probe to get informed of the meta data generated, we add probe to
+#     # the sink pad of the osd element, since by that time, the buffer would have
+#     # had got all the metadata.
+#     osdsinkpad = nvosd.get_static_pad("sink")
+#     if not osdsinkpad:
+#         sys.stderr.write(" Unable to get sink pad of nvosd \n")
+
+#     osdsinkpad.add_probe(Gst.PadProbeType.BUFFER, osd_sink_pad_buffer_probe, 0)
+
+#     # start play back and listen to events
+#     print("Starting pipeline \n")
+#     pipeline.set_state(Gst.State.PLAYING)
+#     try:
+#         loop.run()
+#     except:
+#         pass
+#     # cleanup
+#     pipeline.set_state(Gst.State.NULL)
+
 def main(args):
     # Check input arguments
     if len(args) != 2:
@@ -128,6 +263,7 @@ def main(args):
         sys.exit(1)
 
     # Standard GStreamer initialization
+    GObject.threads_init()
     Gst.init(None)
 
     # Create gstreamer elements
@@ -158,35 +294,77 @@ def main(args):
         sys.stderr.write(" Unable to create Nvv4l2 Decoder \n")
 
     # Create nvstreammux instance to form batches from one or more sources.
+    print("Creating muxer \n")
     streammux = Gst.ElementFactory.make("nvstreammux", "Stream-muxer")
     if not streammux:
         sys.stderr.write(" Unable to create NvStreamMux \n")
 
     # Use nvinfer to run inferencing on decoder's output,
     # behaviour of inferencing is set through config file
+    print("Creating nvinfer \n")
     pgie = Gst.ElementFactory.make("nvinfer", "primary-inference")
     if not pgie:
         sys.stderr.write(" Unable to create pgie \n")
-
     # Use convertor to convert from NV12 to RGBA as required by nvosd
+    print("Creating converter \n")
     nvvidconv = Gst.ElementFactory.make("nvvideoconvert", "convertor")
     if not nvvidconv:
         sys.stderr.write(" Unable to create nvvidconv \n")
 
     # Create OSD to draw on the converted RGBA buffer
+    print("Creating OSD\n")
     nvosd = Gst.ElementFactory.make("nvdsosd", "onscreendisplay")
 
     if not nvosd:
         sys.stderr.write(" Unable to create nvosd \n")
 
     # Finally render the osd output
-    if is_aarch64():
-        transform = Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
+    #if is_aarch64():
+    #    transform = Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
 
-    print("Creating EGLSink \n")
-    sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
+    print("Creating Queue \n")
+    queue = Gst.ElementFactory.make("queue", "queue")
+    if not queue:
+        sys.stderr.write(" Unable to create queue \n")
+
+    print("Creating converter 2\n")
+    nvvidconv2 = Gst.ElementFactory.make("nvvideoconvert", "convertor2")
+    if not nvvidconv2:
+        sys.stderr.write(" Unable to create nvvidconv2 \n")
+
+    print("Creating capsfilter \n")
+    capsfilter = Gst.ElementFactory.make("capsfilter", "capsfilter")
+    if not capsfilter:
+        sys.stderr.write(" Unable to create capsfilter \n")
+
+    caps = Gst.Caps.from_string("video/x-raw, format=I420")
+    capsfilter.set_property("caps", caps)
+
+    print("Creating Encoder \n")
+    encoder = Gst.ElementFactory.make("avenc_mpeg4", "encoder")
+    if not encoder:
+        sys.stderr.write(" Unable to create encoder \n")
+
+    encoder.set_property("bitrate", 2000000)
+
+    print("Creating Code Parser \n")
+    codeparser = Gst.ElementFactory.make("mpeg4videoparse", "mpeg4-parser")
+    if not codeparser:
+        sys.stderr.write(" Unable to create code parser \n")
+
+    print("Creating Container \n")
+    container = Gst.ElementFactory.make("qtmux", "qtmux")
+    if not container:
+        sys.stderr.write(" Unable to create code parser \n")
+
+    print("Creating Sink \n")
+    sink = Gst.ElementFactory.make("filesink", "filesink")
     if not sink:
-        sys.stderr.write(" Unable to create egl sink \n")
+        sys.stderr.write(" Unable to create file sink \n")
+
+    sink.set_property("location", "./out.mp4")
+    sink.set_property("sync", 1)
+    sink.set_property("async", 0)
 
     print("Playing file %s " %args[1])
     source.set_property('location', args[1])
@@ -204,9 +382,15 @@ def main(args):
     pipeline.add(pgie)
     pipeline.add(nvvidconv)
     pipeline.add(nvosd)
+    pipeline.add(queue)
+    pipeline.add(nvvidconv2)
+    pipeline.add(capsfilter)
+    pipeline.add(encoder)
+    pipeline.add(codeparser)
+    pipeline.add(container)
     pipeline.add(sink)
-    if is_aarch64():
-        pipeline.add(transform)
+    #if is_aarch64():
+    #    pipeline.add(transform)
 
     # we link the elements together
     # file-source -> h264-parser -> nvh264-decoder ->
@@ -225,14 +409,20 @@ def main(args):
     streammux.link(pgie)
     pgie.link(nvvidconv)
     nvvidconv.link(nvosd)
-    if is_aarch64():
-        nvosd.link(transform)
-        transform.link(sink)
-    else:
-        nvosd.link(sink)
+    #if is_aarch64():
+        #nvosd.link(transform)
+        #transform.link(sink)
+    #else:
+    nvosd.link(queue)
+    queue.link(nvvidconv2)
+    nvvidconv2.link(capsfilter)
+    capsfilter.link(encoder)
+    encoder.link(codeparser)
+    codeparser.link(container)
+    container.link(sink)
 
-    # create an event loop and feed gstreamer bus mesages to it
-    loop = GLib.MainLoop()
+# create an event loop and feed gstreamer bus mesages to it
+    loop = GObject.MainLoop()
     bus = pipeline.get_bus()
     bus.add_signal_watch()
     bus.connect ("message", bus_call, loop)
