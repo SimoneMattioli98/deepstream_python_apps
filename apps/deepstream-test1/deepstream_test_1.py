@@ -21,7 +21,8 @@ import sys
 sys.path.append('../')
 import gi
 gi.require_version('Gst', '1.0')
-from gi.repository import GLib, Gst, Gfrom, GObject
+from gi.repository import GLib, Gst, Gfrom
+from gi.repository import GObject
 
 from common.is_aarch_64 import is_aarch64
 from common.bus_call import bus_call
