@@ -185,7 +185,9 @@ def main(args):
 
     print("Creating EGLSink \n")
     #sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
-    sink = Gst.ElementFactory.make("fakesink", "fakesink")
+    #sink = Gst.ElementFactory.make("fakesink", "fakesink")
+    sink = Gst.ElementFactory.make("filesink", "filesink")
+
     if not sink:
         sys.stderr.write(" Unable to create egl sink \n")
 
