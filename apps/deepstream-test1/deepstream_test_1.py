@@ -183,8 +183,8 @@ def main(args):
     if is_aarch64():
         transform = Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
 
-    print("Creating EGLSink \n")
-    sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
+    print("Creating sink \n")
+    sink = Gst.ElementFactory.make("fakesink", "fakesink")
     if not sink:
         sys.stderr.write(" Unable to create egl sink \n")
 
