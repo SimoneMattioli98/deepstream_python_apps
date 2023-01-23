@@ -184,7 +184,7 @@ def main(args):
         transform = Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
 
     print("Creating sink \n")
-    sink = Gst.ElementFactory.make("fakesink", "fakesink")
+    sink = Gst.ElementFactory.make("filesink", "mysink")
     if not sink:
         sys.stderr.write(" Unable to create egl sink \n")
 
@@ -195,6 +195,7 @@ def main(args):
     streammux.set_property('batch-size', 1)
     streammux.set_property('batched-push-timeout', 4000000)
     pgie.set_property('config-file-path', "dstest1_pgie_config.txt")
+    sink.set_property('location','output.mp4')
 
     print("Adding elements to Pipeline \n")
     pipeline.add(source)
