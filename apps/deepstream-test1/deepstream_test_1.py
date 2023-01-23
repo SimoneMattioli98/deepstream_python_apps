@@ -244,6 +244,7 @@ def main(args):
     pipeline.add(h264parser)
     pipeline.add(decoder)
     pipeline.add(streammux)
+    pipeline.add(queue)
     pipeline.add(pgie)
     pipeline.add(nvvidconv)
     pipeline.add(nvosd)
