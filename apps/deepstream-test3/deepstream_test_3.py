@@ -285,7 +285,7 @@ def main(args, requested_pgie=None, config=None, disable_probe=False):
     nvosd.set_property('process-mode',OSD_PROCESS_MODE)
     nvosd.set_property('display-text',OSD_DISPLAY_TEXT)
 
-     nvvidconv2 = Gst.ElementFactory.make("nvvideoconvert", "convertor2")
+    nvvidconv2 = Gst.ElementFactory.make("nvvideoconvert", "convertor2")
     if not nvvidconv2:
         sys.stderr.write(" Unable to create nvvidconv2 \n")
 
