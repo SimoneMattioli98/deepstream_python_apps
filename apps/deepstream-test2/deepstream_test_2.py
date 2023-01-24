@@ -237,14 +237,42 @@ def main(args):
     if not nvosd:
         sys.stderr.write(" Unable to create nvosd \n")
 
-    # Finally render the osd output
-    if is_aarch64():
-        transform = Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
+    # # Finally render the osd output
+    # if is_aarch64():
+    #     transform = Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
 
-    print("Creating EGLSink \n")
-    sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
+    nvvidconv2 = Gst.ElementFactory.make("nvvideoconvert", "convertor2")
+    if not nvvidconv2:
+        sys.stderr.write(" Unable to create nvvidconv2 \n")
+
+    capsfilter = Gst.ElementFactory.make("capsfilter", "capsfilter")
+    if not capsfilter:
+        sys.stderr.write(" Unable to create capsfilter \n")
+
+    caps = Gst.Caps.from_string("video/x-raw, format=I420")
+    capsfilter.set_property("caps", caps)
+
+    encoder = Gst.ElementFactory.make("avenc_mpeg4", "encoder")
+    if not encoder:
+        sys.stderr.write(" Unable to create encoder \n")
+    encoder.set_property("bitrate", 2000000)
+
+    print("Creating Code Parser \n")
+    codeparser = Gst.ElementFactory.make("mpeg4videoparse", "mpeg4-parser")
+    if not codeparser:
+        sys.stderr.write(" Unable to create code parser \n")
+
+    print("Creating Container \n")
+    container = Gst.ElementFactory.make("qtmux", "qtmux")
+    if not container:
+        sys.stderr.write(" Unable to create code parser \n")
+
+
+    print("Creating sink \n")
+    sink = Gst.ElementFactory.make("filesink", "mysink")
     if not sink:
         sys.stderr.write(" Unable to create egl sink \n")
+
 
     print("Playing file %s " %args[1])
     source.set_property('location', args[1])
@@ -258,6 +286,7 @@ def main(args):
     sgie1.set_property('config-file-path', "dstest2_sgie1_config.txt")
     sgie2.set_property('config-file-path', "dstest2_sgie2_config.txt")
     sgie3.set_property('config-file-path', "dstest2_sgie3_config.txt")
+    sink.set_property('location','./output-test2.mp4')
 
     #Set properties of tracker
     config = configparser.ConfigParser()
@@ -299,9 +328,14 @@ def main(args):
     pipeline.add(sgie3)
     pipeline.add(nvvidconv)
     pipeline.add(nvosd)
+    pipeline.add(nvvidconv2)
+    pipeline.add(capsfilter)
+    pipeline.add(encoder)
+    pipeline.add(codeparser)
+    pipeline.add(container)
     pipeline.add(sink)
-    if is_aarch64():
-        pipeline.add(transform)
+    # if is_aarch64():
+    #     pipeline.add(transform)
 
     # we link the elements together
     # file-source -> h264-parser -> nvh264-decoder ->
@@ -324,12 +358,23 @@ def main(args):
     sgie2.link(sgie3)
     sgie3.link(nvvidconv)
     nvvidconv.link(nvosd)
-    if is_aarch64():
-        nvosd.link(transform)
-        transform.link(sink)
-    else:
-        nvosd.link(sink)
+    # if is_aarch64():
+    #     nvosd.link(transform)
+    #     transform.link(sink)
+    # else:
+    nvosd.link(nvvidconv2)
+    nvvidconv2.link(capsfilter)
+    capsfilter.link(encoder)
+    encoder.link(codeparser)
 
+    sinkpad1 = container.get_request_pad("video_0")
+    if not sinkpad1:
+        sys.stderr.write(" Unable to get the sink pad of qtmux \n")
+    srcpad1 = codeparser.get_static_pad("src")
+    if not srcpad1:
+        sys.stderr.write(" Unable to get mpeg4 parse src pad \n")
+    srcpad1.link(sinkpad1)
+    container.link(sink)
 
     # create and event loop and feed gstreamer bus mesages to it
     loop = GLib.MainLoop()
