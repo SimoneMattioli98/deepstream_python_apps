@@ -285,6 +285,31 @@ def main(args, requested_pgie=None, config=None, disable_probe=False):
     nvosd.set_property('process-mode',OSD_PROCESS_MODE)
     nvosd.set_property('display-text',OSD_DISPLAY_TEXT)
 
+     nvvidconv2 = Gst.ElementFactory.make("nvvideoconvert", "convertor2")
+    if not nvvidconv2:
+        sys.stderr.write(" Unable to create nvvidconv2 \n")
+
+    capsfilter = Gst.ElementFactory.make("capsfilter", "capsfilter")
+    if not capsfilter:
+        sys.stderr.write(" Unable to create capsfilter \n")
+
+    caps = Gst.Caps.from_string("video/x-raw, format=I420")
+    capsfilter.set_property("caps", caps)
+
+    encoder = Gst.ElementFactory.make("avenc_mpeg4", "encoder")
+    if not encoder:
+        sys.stderr.write(" Unable to create encoder \n")
+    encoder.set_property("bitrate", 2000000)
+
+    print("Creating Code Parser \n")
+    codeparser = Gst.ElementFactory.make("mpeg4videoparse", "mpeg4-parser")
+    if not codeparser:
+        sys.stderr.write(" Unable to create code parser \n")
+
+    print("Creating Container \n")
+    container = Gst.ElementFactory.make("qtmux", "qtmux")
+    if not container:
+        sys.stderr.write(" Unable to create code parser \n")
 
     if no_display:
         print("Creating Fakesink \n")
@@ -292,13 +317,13 @@ def main(args, requested_pgie=None, config=None, disable_probe=False):
         sink.set_property('enable-last-sample', 0)
         sink.set_property('sync', 0)
     else:
-        if(is_aarch64()):
-            print("Creating transform \n ")
-            transform=Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
-            if not transform:
-                sys.stderr.write(" Unable to create transform \n")
+        # if(is_aarch64()):
+        #     print("Creating transform \n ")
+        #     transform=Gst.ElementFactory.make("nvegltransform", "nvegl-transform")
+        #     if not transform:
+        #         sys.stderr.write(" Unable to create transform \n")
         print("Creating EGLSink \n")
-        sink = Gst.ElementFactory.make("nveglglessink", "nvvideo-renderer")
+        sink = Gst.ElementFactory.make("filesink", "filesink")
 
     if not sink:
         sys.stderr.write(" Unable to create sink element \n")
@@ -330,6 +355,8 @@ def main(args, requested_pgie=None, config=None, disable_probe=False):
     tiler.set_property("width", TILED_OUTPUT_WIDTH)
     tiler.set_property("height", TILED_OUTPUT_HEIGHT)
     sink.set_property("qos",0)
+    sink.set_property('location','./output-test3.mp4')
+
 
     print("Adding elements to Pipeline \n")
     pipeline.add(pgie)
@@ -341,6 +368,11 @@ def main(args, requested_pgie=None, config=None, disable_probe=False):
     if transform:
         pipeline.add(transform)
     pipeline.add(sink)
+    pipeline.add(nvvidconv2)
+    pipeline.add(capsfilter)
+    pipeline.add(encoder)
+    pipeline.add(codeparser)
+    pipeline.add(container)
 
     print("Linking elements in the Pipeline \n")
     streammux.link(queue1)
@@ -361,7 +393,20 @@ def main(args, requested_pgie=None, config=None, disable_probe=False):
         transform.link(sink)
     else:
         nvosd.link(queue5)
-        queue5.link(sink)   
+        queue5.link(nvvidconv2)   
+
+    nvvidconv2.link(capsfilter)
+    capsfilter.link(encoder)
+    encoder.link(codeparser)
+
+    sinkpad1 = container.get_request_pad("video_0")
+    if not sinkpad1:
+        sys.stderr.write(" Unable to get the sink pad of qtmux \n")
+    srcpad1 = codeparser.get_static_pad("src")
+    if not srcpad1:
+        sys.stderr.write(" Unable to get mpeg4 parse src pad \n")
+    srcpad1.link(sinkpad1)
+    container.link(sink)
 
     # create an event loop and feed gstreamer bus mesages to it
     loop = GLib.MainLoop()
